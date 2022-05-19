@@ -18,8 +18,8 @@ var wall = new Array();
 
 /* 使用する背景画像を好きなだけ記述 */
 wall[0] = "dirt.png";
-wall[1] = "画像２のURL";
-wall[2] = "画像３のURL";
+wall[1] = "stone.png";
+wall[2] = "manaita_pettanko.png";
 
 var rnd = Math.floor((Math.random() * 100)) % wall.length;
 document.write('<style type="text/css">body { background-image:url(' , wall[rnd] , '); }</style>');
