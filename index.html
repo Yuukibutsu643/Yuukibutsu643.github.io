@@ -13,8 +13,19 @@
 
  <meta name="viewport" content="width=device-width, initial-scale=1"> 
  <link rel="stylesheet" href="hp.css">
+ <script language="JavaScript"><!--
+var wall = new Array();
+
+/* 使用する背景画像を好きなだけ記述 */
+wall[0] = "dirt.png";
+wall[1] = "画像２のURL";
+wall[2] = "画像３のURL";
+
+var rnd = Math.floor((Math.random() * 100)) % wall.length;
+document.write('<style type="text/css">body { background-image:url(' , wall[rnd] , '); }</style>');
+// --></script>
 </head>
-<body background="dirt.png">
+<body>
 <p><img src="mctube.webp"></p>
 <p><a href="map/map.html" class="btn-blue-box">地図</a><a href="http://chromem17.github.io" class="btn-blue-box">同盟リンク</a><a href="https://chromer777.github.io/7/" class="btn-blue-box">７β</a></p>
 <p><a href="https://chromer777.github.io/chromer777.github.io-new/" class="btn-blue-box">魔界</a><a href="https://chromer777.github.io/bing" class="btn-blue-box">フルスクリーン</a><a href="https://chromer777.github.io/nicovideo" class="btn-blue-box">動画</a></p>
