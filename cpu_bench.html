@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D CPU Model</title>
+    <style>
+        body {
+            background: black;
+            color: white;
+            font-family: "MS Gothic";
+        }
+        canvas {
+            width: 640px;
+            height: 480px;
+            border: solid 1px red;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h2>3D CPU モデル</h2>
+    <canvas id="myCanvas"></canvas>
+    <div id="fps">フレーム更新回数(5秒間): 0</div>
+    <div id="cpuCountDisplay">生成されたCPUの数: 0</div>
+    <div id="scoreDisplay">結果: </div>
+    <div id="controls">
+        <label for="cpuCountSelect">生成するCPUの数:</label>
+        <select id="cpuCountSelect">
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+        </select>
+        <button id="startBtn">Start</button>
+        <button id="stopBtn" disabled>Stop</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/pmrem/PMREMGenerator.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
+    
+    <script>
+        let scene, camera, renderer;
+        let fps = 0;
+        let frameCount = 0;
+        let lastFpsUpdateTime = 0;
+        let fpsStartTime = 0;
+        let isAnimating = false;
+        let cpuCount = 0;
+        let targetCpuCount = 100;
+        let startTime = 0;
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, 640 / 480, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true, canvas: document.getElementById('myCanvas') });
+            renderer.setSize(640, 480);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1;
+            renderer.shadowMap.enabled = true;  // Enable shadows
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
+
+            const pmremGenerator = new THREE.PMREMGenerator(renderer);
+            pmremGenerator.compileEquirectangularShader();
+
+            new THREE.RGBELoader().setPath('https://threejs.org/examples/textures/equirectangular/')
+                .load('royal_esplanade_1k.hdr', function(texture) {
+                    const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+                    scene.environment = envMap;
+
+                    texture.dispose();
+                    pmremGenerator.dispose();
+
+                    createScene();
+                });
+
+            camera.position.z = 5;
+        }
+
+        function createScene() {
+            // ライトを追加
+            const light = new THREE.DirectionalLight(0xffffff, 1);
+            light.position.set(-5, 10, -5);  // 影を明確に表示するため、高めの位置に設定
+            light.castShadow = true;  // 影を生成
+            light.shadow.mapSize.width = 2048;  // シャドウマップの解像度を高くする
+            light.shadow.mapSize.height = 2048;
+            light.shadow.camera.near = 0.1;
+            light.shadow.camera.far = 50;
+            light.shadow.camera.left = -10;
+            light.shadow.camera.right = 10;
+            light.shadow.camera.top = 10;
+            light.shadow.camera.bottom = -10;
+            light.shadow.bias = -0.0005;  // シャドウアーティファクトを防ぐ
+            scene.add(light);
+
+            // 地面（影を受け取る）
+            const groundGeometry = new THREE.PlaneGeometry(100, 100);
+            const groundMaterial = new THREE.ShadowMaterial({ opacity: 0.5 });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = -2;
+            ground.receiveShadow = true;  // 影を受け取る
+            scene.add(ground);
+        }
+
+        function createCpu() {
+            const geometry = new THREE.BoxGeometry(4, 0.1, 4);
+            const material = new THREE.MeshStandardMaterial({
+                color: 0x267827,
+                metalness: 0.5,
+                roughness: 0.2,
+            });
+
+            const cpu = new THREE.Mesh(geometry, material);
+            cpu.castShadow = true; // Enable shadow casting for the CPU
+            cpu.receiveShadow = true; // Enable it to receive shadows
+
+            const hsGeometry = new THREE.BoxGeometry(2.5, 0.3, 2.5);
+            const hsMaterial = new THREE.MeshStandardMaterial({
+                color: 0xD2D2D2,
+                metalness: 1.0,
+                roughness: 0.05
+            });
+            const heatSpreader = new THREE.Mesh(hsGeometry, hsMaterial);
+            heatSpreader.position.y = 0.125;
+            heatSpreader.castShadow = true; // Enable shadow casting for the heat spreader
+            heatSpreader.receiveShadow = true;
+            cpu.add(heatSpreader);
+
+            for (let j = -1.9; j <= 1.9; j += 0.15) {
+                for (let k = -1.9; k <= 1.9; k += 0.15) {
+                    if (Math.abs(j) < 1.2 && Math.abs(k) < 1.2) continue;
+
+                    const pinGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.2, 8);
+                    const pinMaterial = new THREE.MeshStandardMaterial({
+                        color: 0xFFD700,
+                        metalness: 1.0,
+                        roughness: 0.1,
+                    });
+                    const pin = new THREE.Mesh(pinGeometry, pinMaterial);
+                    pin.position.set(j, -0.2, k);
+                    pin.rotation.x = Math.PI / 1;
+                    pin.castShadow = true; // ピンが影をキャストするように設定
+                    cpu.add(pin);
+                }
+            }
+
+            cpu.rotation.x = Math.random() * Math.PI;
+            cpu.rotation.y = Math.random() * Math.PI;
+            cpu.rotation.z = Math.random() * Math.PI;
+
+            return cpu;
+        }
+
+        function animate() {
+            if (isAnimating) {
+                const cpu = createCpu();
+                cpu.position.x = Math.random() * 30 - 10;
+                cpu.position.y = Math.random() * 20 - 10;
+                cpu.position.z = Math.random() * 5 - 10;
+                cpuCount++;
+                scene.add(cpu);
+                document.getElementById('cpuCountDisplay').innerText = `生成されたCPUの数: ${cpuCount}`;
+
+                if (cpuCount >= targetCpuCount) {
+                    isAnimating = false;
+                    const endTime = performance.now();
+                    const elapsedTime = ((endTime - startTime) / 1000).toFixed(2);
+                    document.getElementById('scoreDisplay').innerText = `結果: ${elapsedTime}秒`;
+                }
+            }
+
+            frameCount++;
+
+            const now = performance.now();
+
+            if (fpsStartTime > 0 && now - fpsStartTime >= 5000) {
+                fps = frameCount;
+                frameCount = 0;
+                document.getElementById('fps').innerText = `フレーム更新回数(5秒間): ${fps}`;
+                fpsStartTime = now;
+            }
+
+            if (fpsStartTime === 0 && isAnimating) {
+                fpsStartTime = now + 100;
+            }
+
+            renderer.render(scene, camera);
+
+            // リクエストアニメーションフレームを停止するために条件追加
+            if (isAnimating) {
+                requestAnimationFrame(animate);
+            }
+        }
+
+        function resetScene() {
+            while (scene.children.length > 0) {
+                scene.remove(scene.children[0]);
+            }
+            cpuCount = 0;
+            document.getElementById('cpuCountDisplay').innerText = `生成されたCPUの数: 0`;
+            document.getElementById('scoreDisplay').innerText = `結果: `;
+            document.getElementById('fps').innerText = `フレーム更新回数(5秒間): 0`;
+        }
+
+        document.getElementById('startBtn').addEventListener('click', () => {
+            targetCpuCount = parseInt(document.getElementById('cpuCountSelect').value);
+            isAnimating = true;
+            startTime = performance.now();
+            frameCount = 0;
+            fpsStartTime = 0;
+
+            resetScene();
+            createScene();
+            animate();
+
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+        });
+
+        document.getElementById('stopBtn').addEventListener('click', () => {
+            isAnimating = false;
+            resetScene(); // シーンをリセット
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+        });
+
+        init();
+    </script>
+</body>
+</html>
